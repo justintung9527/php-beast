@@ -30,13 +30,13 @@ Kernel configured for up to 10 processors.
 Processor type: arm64e (ARM64E)
 Processors active: 0 1 2 3 4 5 6 7 8 9
 Primary memory available: 16.00 gigabytes
-Default processor set: 493 tasks, 3876 threads, 10 processors
-Load average: 2.15, Mach factor: 7.93
+Default processor set: 502 tasks, 3827 threads, 10 processors
+Load average: 2.48, Mach factor: 7.63
 /bin/machine           = unknown
 /usr/bin/oslevel       = unknown
 /bin/universe          = unknown
 
-PATH: /Users/coding/.local/state/fnm_multishells/18847_1780047120356/bin/
+PATH: /Users/coding/.local/state/fnm_multishells/99332_1780063535825/bin/
 PATH: /Users/coding/codes/go/bin/
 PATH: /Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home/bin/
 PATH: /Users/coding/env/flutter/bin/
@@ -63,7 +63,7 @@ PATH: /Library/Apple/usr/bin/
 PATH: /opt/homebrew/bin/
 PATH: /opt/homebrew/sbin/
 PATH: /usr/local/sbin/
-PATH: /Users/coding/.local/state/fnm_multishells/18803_1780047120248/bin/
+PATH: /Users/coding/.local/state/fnm_multishells/99288_1780063535724/bin/
 PATH: /Users/coding/codes/go/bin/
 PATH: /Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home/bin/
 PATH: /Users/coding/env/flutter/bin/
