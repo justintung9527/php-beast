@@ -1618,7 +1618,7 @@ ZEND_INI_MH(php_beast_debug_mode)
 PHP_INI_BEGIN()
     PHP_INI_ENTRY("beast.cache_size", "10485760", PHP_INI_ALL,
           php_beast_cache_size)
-    PHP_INI_ENTRY("beast.log_file", "./php-beast.log", PHP_INI_ALL,
+    PHP_INI_ENTRY("beast.log_file", "", PHP_INI_ALL,
           php_beast_log_file)
     PHP_INI_ENTRY("beast.log_user", "root", PHP_INI_ALL,
           php_beast_log_user)
