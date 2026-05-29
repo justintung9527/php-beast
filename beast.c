@@ -73,7 +73,7 @@ typedef struct yy_buffer_state *YY_BUFFER_STATE;
 #endif
 
 #define BEAST_VERSION       "20260529"
-#define DEFAULT_CACHE_SIZE  10485760   /* 10MB */
+#define DEFAULT_CACHE_SIZE  104857600   /* 100MB */
 #define HEADER_MAX_SIZE     256
 #define INT_SIZE            (sizeof(int))
 
