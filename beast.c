@@ -233,9 +233,339 @@ int filter_code_comments(char *filename, zval *retval TSRMLS_DC)
 }
 
 
+/*
+ * Extract function bodies from PHP code and replace them with placeholders.
+ * Returns a newly allocated string with placeholders, and fills bodies_data
+ * with the concatenated function bodies (separated by null bytes).
+ * The caller must free the returned string and bodies_data->data.
+ */
+#define BEAST_BODY_PLACEHOLDER "/*BEAST_BODY_%d*/"
+
+struct beast_body_data {
+    char *data;
+    int   length;
+    int   count;
+};
+
+static int is_whitespace_or_comment(char c) {
+    return c == ' ' || c == '\t' || c == '\n' || c == '\r';
+}
+
+static char *extract_function_bodies(const char *code, int code_len,
+                                      struct beast_body_data *bodies)
+{
+    int i, j;
+    int brace_count;
+    int body_start, body_end;
+    int in_function = 0;
+    int found_function = 0;
+    int last_token_end = 0;
+    int placeholder_len;
+    char placeholder[64];
+    char *result;
+    int result_len;
+    int result_cap;
+    int body_count = 0;
+    int bodies_cap = 4096;
+
+    bodies->data = malloc(bodies_cap);
+    bodies->length = 0;
+    bodies->count = 0;
+
+    result_cap = code_len + 4096;
+    result = malloc(result_cap);
+    result_len = 0;
+
+    i = 0;
+    while (i < code_len) {
+        /* Look for 'function' keyword */
+        if (i + 8 < code_len
+            && code[i] == 'f'
+            && code[i+1] == 'u'
+            && code[i+2] == 'n'
+            && code[i+3] == 'c'
+            && code[i+4] == 't'
+            && code[i+5] == 'i'
+            && code[i+6] == 'o'
+            && code[i+7] == 'n'
+            && (i + 8 >= code_len || !isalnum(code[i+8])))
+        {
+            /* Copy everything up to 'function' keyword */
+            if (i > last_token_end) {
+                int copy_len = i - last_token_end;
+                if (result_len + copy_len > result_cap) {
+                    result_cap += copy_len + 4096;
+                    result = realloc(result, result_cap);
+                }
+                memcpy(result + result_len, code + last_token_end, copy_len);
+                result_len += copy_len;
+            }
+
+            in_function = 1;
+            found_function = 0;
+            j = i + 8;
+
+            /* Skip whitespace between 'function' and function name */
+            while (j < code_len && is_whitespace_or_comment(code[j])) {
+                j++;
+            }
+
+            /* Skip function name (if any) - handle '&' for return by reference */
+            if (j < code_len && code[j] == '&') {
+                j++;
+                while (j < code_len && is_whitespace_or_comment(code[j])) {
+                    j++;
+                }
+            }
+
+            /* Skip function name (identifier) */
+            while (j < code_len && (isalnum(code[j]) || code[j] == '_')) {
+                j++;
+            }
+
+            /* Skip whitespace before '(' */
+            while (j < code_len && is_whitespace_or_comment(code[j])) {
+                j++;
+            }
+
+            /* Skip parameter list: find matching ')' */
+            if (j < code_len && code[j] == '(') {
+                int paren_count = 1;
+                j++;
+                while (j < code_len && paren_count > 0) {
+                    if (code[j] == '(') paren_count++;
+                    else if (code[j] == ')') paren_count--;
+                    /* Skip strings in parameter defaults */
+                    else if (code[j] == '\'') {
+                        j++;
+                        while (j < code_len && code[j] != '\'') {
+                            if (code[j] == '\\') j++;
+                            j++;
+                        }
+                    } else if (code[j] == '"') {
+                        j++;
+                        while (j < code_len && code[j] != '"') {
+                            if (code[j] == '\\') j++;
+                            j++;
+                        }
+                    }
+                    j++;
+                }
+            }
+
+            /* Skip whitespace after ')' and before '{' */
+            while (j < code_len && is_whitespace_or_comment(code[j])) {
+                j++;
+            }
+
+            /* Check for return type hint (': ?type') */
+            if (j < code_len && code[j] == ':') {
+                j++;
+                while (j < code_len && is_whitespace_or_comment(code[j])) {
+                    j++;
+                }
+                /* Skip '?' for nullable types */
+                if (j < code_len && code[j] == '?') {
+                    j++;
+                }
+                /* Skip type name */
+                while (j < code_len && (isalnum(code[j]) || code[j] == '_' || code[j] == '\\')) {
+                    j++;
+                }
+                /* Skip whitespace */
+                while (j < code_len && is_whitespace_or_comment(code[j])) {
+                    j++;
+                }
+            }
+
+            /* Now we should be at '{' */
+            if (j < code_len && code[j] == '{') {
+                found_function = 1;
+                body_start = j;
+                brace_count = 1;
+                j++;
+
+                while (j < code_len && brace_count > 0) {
+                    if (code[j] == '{') brace_count++;
+                    else if (code[j] == '}') brace_count--;
+                    /* Handle strings */
+                    else if (code[j] == '\'') {
+                        j++;
+                        while (j < code_len && code[j] != '\'') {
+                            if (code[j] == '\\') j++;
+                            j++;
+                        }
+                    } else if (code[j] == '"') {
+                        j++;
+                        while (j < code_len && code[j] != '"') {
+                            if (code[j] == '\\') j++;
+                            j++;
+                        }
+                    }
+                    j++;
+                }
+
+                body_end = j;
+
+                /* Extract function body (including braces) */
+                int body_len = body_end - body_start;
+
+                /* Store body in bodies_data */
+                if (bodies->length + body_len + 1 > bodies_cap) {
+                    bodies_cap += body_len + 4096;
+                    bodies->data = realloc(bodies->data, bodies_cap);
+                }
+                memcpy(bodies->data + bodies->length, code + body_start, body_len);
+                bodies->length += body_len;
+                bodies->data[bodies->length] = '\0';
+                bodies->length++;
+                bodies->count++;
+
+                /* Copy function signature (from 'function' keyword to '{') into result */
+                int sig_len = body_start - i;
+                if (result_len + sig_len > result_cap) {
+                    result_cap += sig_len + 4096;
+                    result = realloc(result, result_cap);
+                }
+                memcpy(result + result_len, code + i, sig_len);
+                result_len += sig_len;
+
+                /* Write placeholder into result */
+                snprintf(placeholder, sizeof(placeholder),
+                         BEAST_BODY_PLACEHOLDER, body_count);
+                placeholder_len = strlen(placeholder);
+                if (result_len + placeholder_len > result_cap) {
+                    result_cap += placeholder_len + 4096;
+                    result = realloc(result, result_cap);
+                }
+                memcpy(result + result_len, placeholder, placeholder_len);
+                result_len += placeholder_len;
+
+                body_count++;
+                last_token_end = body_end;
+                i = body_end;
+                in_function = 0;
+                continue;
+            }
+
+            /* Not a function definition, copy 'function' keyword and continue */
+            if (!found_function) {
+                int copy_len = j - i;
+                if (result_len + copy_len > result_cap) {
+                    result_cap += copy_len + 4096;
+                    result = realloc(result, result_cap);
+                }
+                memcpy(result + result_len, code + i, copy_len);
+                result_len += copy_len;
+                last_token_end = j;
+                i = j;
+                in_function = 0;
+                continue;
+            }
+        }
+
+        i++;
+    }
+
+    /* Copy remaining code */
+    if (code_len > last_token_end) {
+        int copy_len = code_len - last_token_end;
+        if (result_len + copy_len > result_cap) {
+            result_cap += copy_len + 4096;
+            result = realloc(result, result_cap);
+        }
+        memcpy(result + result_len, code + last_token_end, copy_len);
+        result_len += copy_len;
+    }
+
+    result[result_len] = '\0';
+
+    return result;
+}
+
+
+/*
+ * Restore function bodies from placeholders in the code.
+ * Replaces /*BEAST_BODY_n* / with the actual body from bodies_data.
+ * Returns a newly allocated string.
+ */
+static char *restore_function_bodies(const char *code, int code_len,
+                                      struct beast_body_data *bodies)
+{
+    char *result;
+    int result_len, result_cap;
+    int i, j, body_idx;
+    const char *placeholder_prefix = "/*BEAST_BODY_";
+    int prefix_len = strlen(placeholder_prefix);
+    char *endptr;
+
+    result_cap = code_len + 4096;
+    result = malloc(result_cap);
+    result_len = 0;
+
+    i = 0;
+    while (i < code_len) {
+        /* Look for placeholder */
+        if (i + prefix_len < code_len
+            && memcmp(code + i, placeholder_prefix, prefix_len) == 0)
+        {
+            /* Parse body index */
+            body_idx = (int)strtol(code + i + prefix_len, &endptr, 10);
+            if (endptr && *endptr == '*' && *(endptr + 1) == '/') {
+                /* Found valid placeholder */
+                int placeholder_end = (int)(endptr - code) + 2;
+
+                if (body_idx >= 0 && body_idx < bodies->count) {
+                    /* Find the body in bodies_data */
+                    int offset = 0;
+                    int idx;
+                    for (idx = 0; idx < body_idx; idx++) {
+                        while (offset < bodies->length && bodies->data[offset] != '\0') {
+                            offset++;
+                        }
+                        if (offset < bodies->length) {
+                            offset++; /* skip null */
+                        }
+                    }
+                    int body_len = 0;
+                    while (offset + body_len < bodies->length && bodies->data[offset + body_len] != '\0') {
+                        body_len++;
+                    }
+
+                    /* Copy body into result */
+                    if (result_len + body_len > result_cap) {
+                        result_cap += body_len + 4096;
+                        result = realloc(result, result_cap);
+                    }
+                    memcpy(result + result_len, bodies->data + offset, body_len);
+                    result_len += body_len;
+                }
+
+                i = placeholder_end;
+                continue;
+            }
+        }
+
+        /* Copy character */
+        if (result_len + 1 > result_cap) {
+            result_cap += 4096;
+            result = realloc(result, result_cap);
+        }
+        result[result_len++] = code[i++];
+    }
+
+    result[result_len] = '\0';
+    return result;
+}
+
+
 struct beast_ops *beast_get_encrypt_algo(int type)
 {
     int index = type - 1;
+
+    if (type == BEAST_ENCRYPT_TYPE_BODY) {
+        return ops_handler_list[0];
+    }
 
     if (index < 0 || index >= BEAST_ENCRYPT_TYPE_ERROR) {
         return ops_handler_list[0];
@@ -301,14 +631,106 @@ int encrypt_file(const char *inputfile,
 
     /* if computer is little endian, change file size to big endian */
     if (little_endian()) {
-        dumplen   = swab32(inlen);
         expireval = swab32(expire);
         dumptype  = swab32(encrypt_type);
 
     } else {
-        dumplen   = inlen;
         expireval = expire;
         dumptype  = encrypt_type;
+    }
+
+    if (encrypt_type == BEAST_ENCRYPT_TYPE_BODY) {
+        struct beast_body_data bodies;
+        char *plaintext_code;
+        int plaintext_len;
+        char *encrypted_bodies;
+        int encrypted_bodies_len;
+        int plaintext_len_be;
+        int total_reallen;
+
+        plaintext_code = extract_function_bodies(inbuf, inlen, &bodies);
+
+        if (bodies.count == 0) {
+            free(plaintext_code);
+            if (little_endian()) {
+                dumplen = swab32(inlen);
+                dumptype = swab32(BEAST_ENCRYPT_TYPE_DES);
+            } else {
+                dumplen = inlen;
+                dumptype = BEAST_ENCRYPT_TYPE_DES;
+            }
+            php_stream_write(output_stream,
+                encrypt_file_header_sign, encrypt_file_header_length);
+            php_stream_write(output_stream, (const char *)&dumplen, INT_SIZE);
+            php_stream_write(output_stream, (const char *)&expireval, INT_SIZE);
+            php_stream_write(output_stream, (const char *)&dumptype, INT_SIZE);
+            if (encrypt_ops->encrypt(inbuf, inlen, &outbuf, &outlen) == -1) {
+                php_error_docref(NULL TSRMLS_CC, E_ERROR,
+                                 "Unable to encrypt file `%s'", outputfile);
+                goto failed;
+            }
+            php_stream_write(output_stream, outbuf, outlen);
+            php_stream_close(output_stream);
+            zval_dtor(&codes);
+            if (encrypt_ops->free) {
+                encrypt_ops->free(outbuf);
+            }
+            return 0;
+        }
+
+        plaintext_len = strlen(plaintext_code);
+        total_reallen = plaintext_len + bodies.length;
+
+        if (little_endian()) {
+            dumplen = swab32(total_reallen);
+            plaintext_len_be = swab32(plaintext_len);
+        } else {
+            dumplen = total_reallen;
+            plaintext_len_be = plaintext_len;
+        }
+
+        php_stream_write(output_stream,
+            encrypt_file_header_sign, encrypt_file_header_length);
+        php_stream_write(output_stream, (const char *)&dumplen, INT_SIZE);
+        php_stream_write(output_stream, (const char *)&expireval, INT_SIZE);
+        php_stream_write(output_stream, (const char *)&dumptype, INT_SIZE);
+
+        if (encrypt_ops->encrypt(bodies.data, bodies.length,
+                                 &encrypted_bodies, &encrypted_bodies_len) == -1)
+        {
+            free(plaintext_code);
+            free(bodies.data);
+            php_error_docref(NULL TSRMLS_CC, E_ERROR,
+                             "Unable to encrypt function bodies for file `%s'", outputfile);
+            goto failed;
+        }
+
+        php_stream_write(output_stream, (const char *)&plaintext_len_be, INT_SIZE);
+        php_stream_write(output_stream, plaintext_code, plaintext_len);
+        if (little_endian()) {
+            int bodies_count_be = swab32(bodies.count);
+            php_stream_write(output_stream, (const char *)&bodies_count_be, INT_SIZE);
+        } else {
+            php_stream_write(output_stream, (const char *)&bodies.count, INT_SIZE);
+        }
+        php_stream_write(output_stream, encrypted_bodies, encrypted_bodies_len);
+
+        php_stream_close(output_stream);
+        zval_dtor(&codes);
+
+        free(plaintext_code);
+        free(bodies.data);
+        if (encrypt_ops->free) {
+            encrypt_ops->free(encrypted_bodies);
+        }
+
+        return 0;
+    }
+
+    if (little_endian()) {
+        dumplen = swab32(inlen);
+    } else {
+        dumplen = inlen;
     }
 
     php_stream_write(output_stream,
@@ -473,6 +895,118 @@ int decrypt_file(const char *filename, int stream,
     }
 
     *ret_encrypt = encrypt_ops = beast_get_encrypt_algo(entype);
+
+    if (entype == BEAST_ENCRYPT_TYPE_BODY) {
+        int plaintext_len;
+        int plaintext_len_be;
+        char *plaintext_code;
+        char *encrypted_bodies;
+        int encrypted_bodies_len;
+        char *decrypted_bodies;
+        int decrypted_bodies_len;
+        struct beast_body_data bodies;
+        char *restored_code;
+        int restored_len;
+
+        bodylen = filesize - headerlen;
+
+        if (bodylen < (int)sizeof(int)) {
+            beast_write_log(beast_log_error,
+                    "Invalid BODY encrypt file `%s': file too small", filename);
+            retval = -1;
+            goto failed;
+        }
+
+        if (!(buffer = malloc(bodylen))) {
+            beast_write_log(beast_log_error,
+                    "Failed to alloc memory for file `%s' size `%d'",
+                    filename, bodylen);
+            retval = -1;
+            goto failed;
+        }
+
+        if (read(stream, buffer, bodylen) != bodylen) {
+            beast_write_log(beast_log_error,
+                    "Failed to read stream from file `%s'", filename);
+            free(buffer);
+            retval = -1;
+            goto failed;
+        }
+
+        plaintext_len_be = *((int *)buffer);
+        if (little_endian()) {
+            plaintext_len = swab32(plaintext_len_be);
+        } else {
+            plaintext_len = plaintext_len_be;
+        }
+
+        if (plaintext_len < 0 || plaintext_len + (int)sizeof(int) > bodylen) {
+            beast_write_log(beast_log_error,
+                    "Invalid plaintext length in BODY encrypt for file `%s'", filename);
+            free(buffer);
+            retval = -1;
+            goto failed;
+        }
+
+        plaintext_code = buffer + sizeof(int);
+        encrypted_bodies = plaintext_code + plaintext_len;
+        encrypted_bodies_len = bodylen - (int)sizeof(int) - plaintext_len;
+
+        if (encrypted_bodies_len < (int)sizeof(int)) {
+            beast_write_log(beast_log_error,
+                    "Invalid BODY encrypt file `%s': no body count", filename);
+            free(buffer);
+            retval = -1;
+            goto failed;
+        }
+
+        bodies.count = *((int *)encrypted_bodies);
+        if (little_endian()) {
+            bodies.count = swab32(bodies.count);
+        }
+
+        encrypted_bodies += sizeof(int);
+        encrypted_bodies_len -= sizeof(int);
+
+        if (encrypt_ops->decrypt(encrypted_bodies, encrypted_bodies_len,
+                                 &decrypted_bodies, &decrypted_bodies_len) == -1)
+        {
+            beast_write_log(beast_log_error,
+                    "Failed to decrypt function bodies for file `%s'", filename);
+            free(buffer);
+            retval = -1;
+            goto failed;
+        }
+
+        bodies.data = decrypted_bodies;
+        bodies.length = decrypted_bodies_len;
+
+        restored_code = restore_function_bodies(
+            plaintext_code, plaintext_len, &bodies);
+        restored_len = strlen(restored_code);
+
+        free(buffer);
+
+        if (encrypt_ops->free) {
+            encrypt_ops->free(decrypted_bodies);
+        }
+
+        findkey.fsize = restored_len;
+
+        if ((cache = beast_cache_create(&findkey))) {
+            memcpy(beast_cache_data(cache), restored_code, restored_len);
+            cache = beast_cache_push(cache);
+            *retbuf = beast_cache_data(cache);
+            *retlen = beast_cache_size(cache);
+            free(restored_code);
+        } else {
+            *retbuf = restored_code;
+            *retlen = restored_len;
+            *free_buffer = 1;
+        }
+
+        return 0;
+    }
 
     /**
      * How many bytes would be read from encrypt file,
@@ -1380,6 +1914,8 @@ PHP_MINIT_FUNCTION(beast)
         BEAST_ENCRYPT_TYPE_AES, CONST_CS|CONST_PERSISTENT);
     REGISTER_LONG_CONSTANT("BEAST_ENCRYPT_TYPE_BASE64",
         BEAST_ENCRYPT_TYPE_BASE64, CONST_CS|CONST_PERSISTENT);
+    REGISTER_LONG_CONSTANT("BEAST_ENCRYPT_TYPE_BODY",
+        BEAST_ENCRYPT_TYPE_BODY, CONST_CS|CONST_PERSISTENT);
 
     beast_write_log(beast_log_debug, "Beast module was initialized");
 

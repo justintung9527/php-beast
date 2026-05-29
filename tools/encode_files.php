@@ -131,6 +131,9 @@ case 'AES':
 case 'BASE64':
     $entype = BEAST_ENCRYPT_TYPE_BASE64;
     break;
+case 'BODY':
+    $entype = BEAST_ENCRYPT_TYPE_BODY;
+    break;
 case 'DES':
 default:
     $entype = BEAST_ENCRYPT_TYPE_DES;

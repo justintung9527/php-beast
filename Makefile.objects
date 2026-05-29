@@ -1,0 +1,36 @@
+beast.lo: /Users/coding/codes/opensource/php-beast/beast.c
+	$(LIBTOOL) --mode=compile $(CC)  -I. -I/Users/coding/codes/opensource/php-beast $(COMMON_FLAGS) $(CFLAGS_CLEAN) $(EXTRA_CFLAGS)  -c /Users/coding/codes/opensource/php-beast/beast.c -o beast.lo 
+aes_algo_handler.lo: /Users/coding/codes/opensource/php-beast/aes_algo_handler.c
+	$(LIBTOOL) --mode=compile $(CC)  -I. -I/Users/coding/codes/opensource/php-beast $(COMMON_FLAGS) $(CFLAGS_CLEAN) $(EXTRA_CFLAGS)  -c /Users/coding/codes/opensource/php-beast/aes_algo_handler.c -o aes_algo_handler.lo 
+des_algo_handler.lo: /Users/coding/codes/opensource/php-beast/des_algo_handler.c
+	$(LIBTOOL) --mode=compile $(CC)  -I. -I/Users/coding/codes/opensource/php-beast $(COMMON_FLAGS) $(CFLAGS_CLEAN) $(EXTRA_CFLAGS)  -c /Users/coding/codes/opensource/php-beast/des_algo_handler.c -o des_algo_handler.lo 
+base64_algo_handler.lo: /Users/coding/codes/opensource/php-beast/base64_algo_handler.c
+	$(LIBTOOL) --mode=compile $(CC)  -I. -I/Users/coding/codes/opensource/php-beast $(COMMON_FLAGS) $(CFLAGS_CLEAN) $(EXTRA_CFLAGS)  -c /Users/coding/codes/opensource/php-beast/base64_algo_handler.c -o base64_algo_handler.lo 
+beast_mm.lo: /Users/coding/codes/opensource/php-beast/beast_mm.c
+	$(LIBTOOL) --mode=compile $(CC)  -I. -I/Users/coding/codes/opensource/php-beast $(COMMON_FLAGS) $(CFLAGS_CLEAN) $(EXTRA_CFLAGS)  -c /Users/coding/codes/opensource/php-beast/beast_mm.c -o beast_mm.lo 
+spinlock.lo: /Users/coding/codes/opensource/php-beast/spinlock.c
+	$(LIBTOOL) --mode=compile $(CC)  -I. -I/Users/coding/codes/opensource/php-beast $(COMMON_FLAGS) $(CFLAGS_CLEAN) $(EXTRA_CFLAGS)  -c /Users/coding/codes/opensource/php-beast/spinlock.c -o spinlock.lo 
+cache.lo: /Users/coding/codes/opensource/php-beast/cache.c
+	$(LIBTOOL) --mode=compile $(CC)  -I. -I/Users/coding/codes/opensource/php-beast $(COMMON_FLAGS) $(CFLAGS_CLEAN) $(EXTRA_CFLAGS)  -c /Users/coding/codes/opensource/php-beast/cache.c -o cache.lo 
+beast_log.lo: /Users/coding/codes/opensource/php-beast/beast_log.c
+	$(LIBTOOL) --mode=compile $(CC)  -I. -I/Users/coding/codes/opensource/php-beast $(COMMON_FLAGS) $(CFLAGS_CLEAN) $(EXTRA_CFLAGS)  -c /Users/coding/codes/opensource/php-beast/beast_log.c -o beast_log.lo 
+global_algo_modules.lo: /Users/coding/codes/opensource/php-beast/global_algo_modules.c
+	$(LIBTOOL) --mode=compile $(CC)  -I. -I/Users/coding/codes/opensource/php-beast $(COMMON_FLAGS) $(CFLAGS_CLEAN) $(EXTRA_CFLAGS)  -c /Users/coding/codes/opensource/php-beast/global_algo_modules.c -o global_algo_modules.lo 
+header.lo: /Users/coding/codes/opensource/php-beast/header.c
+	$(LIBTOOL) --mode=compile $(CC)  -I. -I/Users/coding/codes/opensource/php-beast $(COMMON_FLAGS) $(CFLAGS_CLEAN) $(EXTRA_CFLAGS)  -c /Users/coding/codes/opensource/php-beast/header.c -o header.lo 
+networkcards.lo: /Users/coding/codes/opensource/php-beast/networkcards.c
+	$(LIBTOOL) --mode=compile $(CC)  -I. -I/Users/coding/codes/opensource/php-beast $(COMMON_FLAGS) $(CFLAGS_CLEAN) $(EXTRA_CFLAGS)  -c /Users/coding/codes/opensource/php-beast/networkcards.c -o networkcards.lo 
+tmpfile_file_handler.lo: /Users/coding/codes/opensource/php-beast/tmpfile_file_handler.c
+	$(LIBTOOL) --mode=compile $(CC)  -I. -I/Users/coding/codes/opensource/php-beast $(COMMON_FLAGS) $(CFLAGS_CLEAN) $(EXTRA_CFLAGS)  -c /Users/coding/codes/opensource/php-beast/tmpfile_file_handler.c -o tmpfile_file_handler.lo 
+pipe_file_handler.lo: /Users/coding/codes/opensource/php-beast/pipe_file_handler.c
+	$(LIBTOOL) --mode=compile $(CC)  -I. -I/Users/coding/codes/opensource/php-beast $(COMMON_FLAGS) $(CFLAGS_CLEAN) $(EXTRA_CFLAGS)  -c /Users/coding/codes/opensource/php-beast/pipe_file_handler.c -o pipe_file_handler.lo 
+file_handler_switch.lo: /Users/coding/codes/opensource/php-beast/file_handler_switch.c
+	$(LIBTOOL) --mode=compile $(CC)  -I. -I/Users/coding/codes/opensource/php-beast $(COMMON_FLAGS) $(CFLAGS_CLEAN) $(EXTRA_CFLAGS)  -c /Users/coding/codes/opensource/php-beast/file_handler_switch.c -o file_handler_switch.lo 
+shm.lo: /Users/coding/codes/opensource/php-beast/shm.c
+	$(LIBTOOL) --mode=compile $(CC)  -I. -I/Users/coding/codes/opensource/php-beast $(COMMON_FLAGS) $(CFLAGS_CLEAN) $(EXTRA_CFLAGS)  -c /Users/coding/codes/opensource/php-beast/shm.c -o shm.lo 
+$(phplibdir)/beast.la: ./beast.la
+	$(LIBTOOL) --mode=install cp ./beast.la $(phplibdir)
+
+./beast.la: $(shared_objects_beast) $(BEAST_SHARED_DEPENDENCIES)
+	$(LIBTOOL) --mode=link $(CC) $(COMMON_FLAGS) $(CFLAGS_CLEAN) $(EXTRA_CFLAGS) $(LDFLAGS)  -o $@ -export-dynamic -avoid-version -prefer-pic -module -rpath $(phplibdir) $(EXTRA_LDFLAGS) $(shared_objects_beast) $(BEAST_SHARED_LIBADD)
+
