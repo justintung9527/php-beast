@@ -441,6 +441,13 @@ static char *extract_function_bodies(const char *code, int code_len,
                 memcpy(result + result_len, placeholder, placeholder_len);
                 result_len += placeholder_len;
 
+                /* Add newline after placeholder to preserve readability */
+                if (result_len + 1 > result_cap) {
+                    result_cap += 4096;
+                    result = realloc(result, result_cap);
+                }
+                result[result_len++] = '\n';
+
                 body_count++;
                 last_token_end = body_end;
                 i = body_end;
