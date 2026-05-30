@@ -80,7 +80,7 @@ dst_path = ""
 ; expire time
 expire = ""
 
-; encrypt type (selection: DES, AES, BASE64)
+; encrypt type (selection: DES, AES, BASE64, BODY)
 encrypt_type = "DES"
 ```
 `src_path` 是要加密项目的路径，`dst_path` 是保存加密后项目的路径，`expire` 是设置项目可使用的时间 (`expire` 的格式是：`YYYY-mm-dd HH:ii:ss`)。`encrypt_type`是加密的方式，选择项有：DES、AES、BASE64。
